@@ -1,7 +1,8 @@
 # API
 fastapi==0.115.0
 uvicorn==0.30.6
-pydantic==2.8.2
+pydantic>=2.9.0
+
 
 # LLM — OpenRouter uses the OpenAI SDK
 openai>=1.54.0
@@ -9,7 +10,7 @@ openai>=1.54.0
 # Embeddings + Vector Search
 sentence-transformers==3.1.1
 faiss-cpu>=1.9.0
-numpy==1.26.4
+numpy>=2.0.0
 
 # Scraping (only needed for scraper.py)
 playwright>=1.48.0

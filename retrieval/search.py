@@ -1,45 +1,57 @@
 """
 retrieval/search.py
 -------------------
-Given a text query, returns the top-N most relevant assessments
-from the FAISS index.
+Searches the FAISS index using OpenRouter embeddings.
+No local model — uses API calls for query embedding only.
 
-This file is imported by the agent — it doesn't run standalone.
-
-Usage:
-    from retrieval.search import search
-
-    results = search("Java developer mid level stakeholder communication")
-    # returns a list of assessment dicts from the catalog
+Imported by agent/llm.py at runtime.
 """
 
 import json
+import os
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 CATALOG_FILE = "catalog/shl_catalog.json"
 INDEX_FILE   = "retrieval/faiss.index"
 MAP_FILE     = "retrieval/index_map.json"
-EMBED_MODEL  = "all-MiniLM-L6-v2"
+EMBED_MODEL  = "openai/text-embedding-3-small"
 
-# ── Load everything once when the module is imported ─────────────────────────
-# This means the model and index stay in memory across requests (fast).
-print("Loading catalog, FAISS index, and embedding model...")
+# ── Load everything once when the module is first imported ────────────────────
+print("Loading catalog and FAISS index...")
 
 with open(CATALOG_FILE, encoding="utf-8") as f:
     _catalog = json.load(f)
 
-# Build a lookup dict: id → assessment dict
 _catalog_by_id = {item["id"]: item for item in _catalog}
 
 with open(MAP_FILE) as f:
-    _index_map = json.load(f)   # {"0": "opq32r", "1": "verify-g-plus", ...}
+    _index_map = json.load(f)
 
 _faiss_index = faiss.read_index(INDEX_FILE)
-_model = SentenceTransformer(EMBED_MODEL)
+
+_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
 
 print(f"Ready: {len(_catalog)} assessments, {_faiss_index.ntotal} vectors indexed.")
+
+
+def _embed_query(query: str) -> np.ndarray:
+    """Embed a single query string using OpenRouter."""
+    response = _client.embeddings.create(
+        model=EMBED_MODEL,
+        input=[query],
+    )
+    vec = np.array([response.data[0].embedding], dtype=np.float32)
+    # Normalize for cosine similarity
+    norm = np.linalg.norm(vec)
+    return vec / max(norm, 1e-10)
 
 
 def search(query: str, top_k: int = 15) -> list[dict]:
@@ -47,26 +59,19 @@ def search(query: str, top_k: int = 15) -> list[dict]:
     Search the catalog for assessments relevant to the query.
 
     Args:
-        query:  free-text query built from the conversation so far
-        top_k:  how many candidates to return (LLM picks final 1-10 from these)
+        query:  free-text built from conversation
+        top_k:  how many candidates to return
 
     Returns:
-        List of assessment dicts (same shape as catalog entries).
+        List of assessment dicts with _score attached.
     """
-    # Embed the query the same way we embedded the catalog
-    query_vec = _model.encode(
-        [query],
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    ).astype(np.float32)
-
-    # Search FAISS — returns distances and row indices
+    query_vec = _embed_query(query)
     distances, indices = _faiss_index.search(query_vec, top_k)
 
     results = []
     for dist, idx in zip(distances[0], indices[0]):
         if idx == -1:
-            continue   # FAISS returns -1 if fewer results than top_k exist
+            continue
 
         assessment_id = _index_map.get(str(idx))
         if not assessment_id:
@@ -76,7 +81,6 @@ def search(query: str, top_k: int = 15) -> list[dict]:
         if not assessment:
             continue
 
-        # Attach similarity score for debugging (not exposed to the user)
         results.append({**assessment, "_score": float(dist)})
 
     return results
@@ -84,22 +88,12 @@ def search(query: str, top_k: int = 15) -> list[dict]:
 
 def filter_by(
     assessments: list[dict],
-    test_types:  list[str] | None = None,
-    job_level:   str | None = None,
-    remote_only: bool = False,
+    test_types:   list[str] | None = None,
+    job_level:    str | None = None,
+    remote_only:  bool = False,
     adaptive_only: bool = False,
 ) -> list[dict]:
-    """
-    Optional hard filter on top of FAISS results.
-    Call this after search() if the user has specified constraints.
-
-    Args:
-        assessments:   results from search()
-        test_types:    e.g. ["K", "S"] to keep only Knowledge & Simulation tests
-        job_level:     e.g. "Manager" to keep only assessments for that level
-        remote_only:   only return remote-enabled assessments
-        adaptive_only: only return adaptive assessments
-    """
+    """Optional hard filter on top of FAISS results."""
     out = assessments
 
     if test_types:

@@ -1,0 +1,6 @@
+.env
+myenv/
+__pycache__/
+*.pyc
+retrieval/faiss.index
+retrieval/index_map.json

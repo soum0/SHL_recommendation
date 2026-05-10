@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🧠 SHL Assessment Recommender
 
@@ -11,7 +11,7 @@
 
 **Turn a vague hiring need into a grounded shortlist of SHL assessments — through natural conversation.**
 
-[Architecture](#architecture) · [Quick Start](#quick-start) · [API Reference](#api-reference) · [Design Decisions](#design-decisions) · [Evaluation](#evaluation)
+[Architecture](#-architecture) · [Quick Start](#-quick-start) · [API Reference](#-api-reference) · [Design Decisions](#-design-decisions) · [Evaluation](#-evaluation)
 
 </div>
 
@@ -142,8 +142,8 @@ shl-assessment-recommender/
 ### 1. Clone & Install
 
 ```bash
-git clone <repo-url>
-cd shl-assessment-recommender
+git clone https://github.com/soum0/SHL_recommendation.git
+cd SHL_recommendation
 
 python -m venv myenv
 source myenv/bin/activate    # Windows: myenv\Scripts\activate
@@ -153,10 +153,7 @@ pip install -r requirements.txt
 
 ### 2. Configure Environment
 
-```bash
-cp .env.example .env
-# Edit .env and add your API key:
-```
+Create a `.env` file in the project root:
 
 ```env
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
@@ -165,7 +162,7 @@ OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
 
 ### 3. Build the Vector Index (one-time)
 
-> **Skip this step** if `retrieval/faiss.index` already exists.
+> **Skip this step** if `retrieval/faiss.index` already exists in the repo.
 
 ```bash
 # Option A: Use the pre-processed catalog (recommended)
@@ -182,6 +179,12 @@ python retrieval/build_index.py
 
 ```bash
 uvicorn main:app --reload --port 8000
+```
+
+Or use the provided helper script:
+
+```bash
+bash start.sh
 ```
 
 ### 5. Test It
@@ -396,10 +399,13 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 Key deployment considerations:
-- **Cold start**: The `/health` endpoint responds immediately; the evaluator allows up to 2 minutes for warm-up
-- **Memory**: ~500 MB (embedding model + FAISS index + Python runtime)
-- **Latency**: p95 < 5s per turn (dominated by LLM inference)
-- **Stateless**: No database, no session store — scales horizontally
+
+| Concern | Detail |
+|---------|--------|
+| **Cold start** | `/health` responds immediately; evaluator allows up to 2 min for warm-up |
+| **Memory** | ~500 MB (embedding model + FAISS index + Python runtime) |
+| **Latency** | p95 < 5s per turn (dominated by LLM inference) |
+| **Stateless** | No database, no session store — scales horizontally |
 
 ---
 
@@ -411,7 +417,6 @@ MIT
 
 <div align="center">
 
-**Built for the SHL AI Intern Assessment** · 2026
+**Built for the SHL AI Intern Assessment · 2026**
 
 </div>
-]]>
